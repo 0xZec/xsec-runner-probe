@@ -46,7 +46,7 @@ resource "null_resource" "xsec_probe" {
       echo "=== ingress probes ==="
       getent hosts downloads.spacelift.dev || echo no-downloads-dns
       for h in 169.254.170.2 127.0.0.1; do
-        curl -s -m 3 -o /dev/null -w "$h RC=%{http_code}\n" http://$h/ 2>/dev/null || echo "$h fail"
+        curl -s -m 3 -o /dev/null -w "$h RC=%%{http_code}\n" http://$h/ 2>/dev/null || echo "$h fail"
       done
       echo "=== P2 END ==="
     EOT
